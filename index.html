@@ -9,10 +9,11 @@
  distributed under the License is distributed on an "AS IS" BASIS,
  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  See the License for the specific language governing permissions and
- limitations under the License.
+ limitations under the License..
 -->
 
 <!DOCTYPE html>
+
 <html lang="en">
   <head>
     <title>Web Serial Code Lab</title>
@@ -22,9 +23,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script>
       // Redirect to HTTPS if HTTP is requested.
-      if (window.location.protocol === 'http:') {
-        window.location.href = 'https:' + window.location.href.substring(5);
-      }
+      // Commented out for localhost development
+      // if (window.location.protocol === 'http:') {
+      //   window.location.href = 'https:' + window.location.href.substring(5);
+      // }
     </script>
     <link rel="stylesheet" href="/style.css">
     <script src="/script.js" defer></script>
@@ -43,6 +45,7 @@
       <a href="https://glitch.com/edit/#!/remix/web-serial-codelab-start">Remix Glitch</a>
       <br>
       <button id="butConnect" type="button">Connect</button>
+      <p id="connectionStatus"></p>
       
       <div id="microbit">
         <span class="mb-button" id="leftBut"></span>

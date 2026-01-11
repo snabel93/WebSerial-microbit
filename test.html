@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Web Serial Check</title>
+    <style>
+        .hidden { display: none; }
+        #notSupported {
+            padding: 15px;
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+  <h1>Web Serial Tester</h1>
+
+  <div id="notSupported">
+    <strong>Warning:</strong> Web Serial is not supported in this browser. 
+    Please use a recent version of Chrome, Edge, or Opera.
+  </div>
+
+  <button id="connect" class="hidden">Connect to Serial Device</button>
+  <pre id="output"></pre>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const butConnect = document.getElementById('connect');
+      const notSupported = document.getElementById('notSupported');
+      const output = document.getElementById('output');
+
+      // 1. Feature Detection
+      const isSupported = 'serial' in navigator;
+      
+      // If supported, hide the warning and show the connect button
+      if (isSupported) {
+          notSupported.classList.add('hidden');
+          butConnect.classList.remove('hidden');
+      }
+
+      // 2. Connection Logic
+      butConnect.addEventListener('click', async () => {
+        try {
+          const port = await navigator.serial.requestPort();
+          await port.open({ baudRate: 9600 });
+          
+          output.textContent = "Connected successfully!";
+          
+          // Start reading...
+          const textDecoder = new TextDecoderStream();
+          port.readable.pipeTo(textDecoder.writable);
+          const reader = textDecoder.readable.getReader();
+
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            output.textContent += value;
+          }
+        } catch (error) {
+          output.textContent = "Error: " + error.message;
+        }
+      });
+    });
+  </script>
+</body>
+</html>

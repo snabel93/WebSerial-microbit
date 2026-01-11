@@ -24,11 +24,12 @@ let outputDone;
 let inputStream;
 let outputStream;
 
-const log = document.getElementById('log');
-const ledCBs = document.querySelectorAll('input.led');
-const divLeftBut = document.getElementById('leftBut');
-const divRightBut = document.getElementById('rightBut');
-const butConnect = document.getElementById('butConnect');
+let log;
+let ledCBs;
+let divLeftBut;
+let divRightBut;
+let butConnect;
+let connectionStatus;
 
 const GRID_HAPPY = [1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1,0,0,0,1,0,1,1,1,0];
 const GRID_SAD =   [1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,1,1,1,0,1,0,0,0,1];
@@ -37,10 +38,20 @@ const GRID_HEART = [0,1,0,1,0,1,1,1,1,1,1,1,1,1,1,0,1,1,1,0,0,0,1,0,0];
 
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Initialize DOM elements
+  log = document.getElementById('log');
+  ledCBs = document.querySelectorAll('input.led');
+  divLeftBut = document.getElementById('leftBut');
+  divRightBut = document.getElementById('rightBut');
+  butConnect = document.getElementById('butConnect');
+  connectionStatus = document.getElementById('connectionStatus');
+
   butConnect.addEventListener('click', clickConnect);
 
-  // CODELAB: Add feature detection here.
-
+ // CODELAB: Add feature detection here.
+const notSupported = document.getElementById('notSupported');
+notSupported.classList.toggle('hidden', 'serial' in navigator);
+initCheckboxes();
 });
 
 
@@ -51,12 +62,28 @@ document.addEventListener('DOMContentLoaded', () => {
  */
 async function connect() {
   // CODELAB: Add code to request & open port here.
+// - Request a port and open a connection.
+port = await navigator.serial.requestPort();
+// - Wait for the port to open.
+await port.open({ baudRate: 9600 });
 
-  // CODELAB: Add code setup the output stream here.
+// CODELAB: Add code setup the output stream here.
+const encoder = new TextEncoderStream();
+outputDone = encoder.readable.pipeTo(port.writable);
+outputStream = encoder.writable;
 
-  // CODELAB: Send CTRL-C and turn off echo on REPL
+// CODELAB: Send CTRL-C and turn off echo on REPL
+writeToStream('\x03', 'echo(false);');
 
-  // CODELAB: Add code to read the stream here.
+// CODELAB: Add code to read the stream here.
+let decoder = new TextDecoderStream();
+inputDone = port.readable.pipeTo(decoder.writable);
+inputStream = decoder.readable
+  .pipeThrough(new TransformStream(new LineBreakTransformer()))
+  .pipeThrough(new TransformStream(new JSONTransformer()));
+
+reader = inputStream.getReader();
+readLoop();
 
 }
 
@@ -69,11 +96,25 @@ async function disconnect() {
   drawGrid(GRID_OFF);
   sendGrid();
 
-  // CODELAB: Close the input stream (reader).
+// CODELAB: Close the input stream (reader).
+if (reader) {
+  await reader.cancel();
+  await inputDone.catch(() => {});
+  reader = null;
+  inputDone = null;
+}
 
-  // CODELAB: Close the output stream.
+// CODELAB: Close the output stream.
+if (outputStream) {
+  await outputStream.getWriter().close();
+  await outputDone;
+  outputStream = null;
+  outputDone = null;
+}
 
-  // CODELAB: Close the port.
+// CODELAB: Close the port.
+await port.close();
+port = null;
 
 }
 
@@ -83,13 +124,33 @@ async function disconnect() {
  * Click handler for the connect/disconnect button.
  */
 async function clickConnect() {
-  // CODELAB: Add disconnect code here.
+// CODELAB: Add disconnect code here.
+if (port) {
+  await disconnect();
+  toggleUIConnected(false);
+  return;
+}
 
   // CODELAB: Add connect code here.
+await connect();
 
-  // CODELAB: Reset the grid on connect here.
+// Wait a bit, then define a helper function for Espruino
+setTimeout(() => {
+  // Create displayPattern function that converts binary to string for show()
+  writeToStream('function displayPattern(p){var b=p.toString(2);while(b.length<25)b="0"+b;var s="";for(var i=0;i<25;i++){s+=b[24-i];}show(s);}');
+}, 100);
 
-  // CODELAB: Initialize micro:bit buttons.
+// CODELAB: Reset the grid on connect here.
+setTimeout(() => {
+  drawGrid(GRID_HAPPY);
+  sendGrid();
+}, 300);
+
+// CODELAB: Initialize micro:bit buttons.
+setTimeout(() => {
+  watchButton('BTN1');
+  watchButton('BTN2');
+}, 200);
 
   toggleUIConnected(true);
 }
@@ -100,7 +161,21 @@ async function clickConnect() {
  * Reads data from the input stream and displays it on screen.
  */
 async function readLoop() {
-  // CODELAB: Add read loop here.
+ // CODELAB: Add read loop here.
+while (true) {
+  const { value, done } = await reader.read();
+  if (value) {
+    log.textContent += value + '\n';
+    if (value.button) {
+      buttonPushed(value);
+    }
+  }
+  if (done) {
+    console.log('[readLoop] DONE', done);
+    reader.releaseLock();
+    break;
+  }
+}
 
 }
 
@@ -110,7 +185,12 @@ async function readLoop() {
  * Iterates over the checkboxes and generates the command to set the LEDs.
  */
 function sendGrid() {
-  // CODELAB: Generate the grid
+// CODELAB: Generate the grid
+const arr = [];
+ledCBs.forEach((cb) => {
+  arr.push(cb.checked === true ? 1 : 0);
+});
+writeToStream(`displayPattern(0b${arr.reverse().join('')})`);
 
 }
 
@@ -121,7 +201,13 @@ function sendGrid() {
  * @param  {...string} lines lines to send to the micro:bit
  */
 function writeToStream(...lines) {
-  // CODELAB: Write to output stream
+// CODELAB: Write to output stream
+const writer = outputStream.getWriter();
+lines.forEach((line) => {
+  console.log('[SEND]', line);
+  writer.write(line + '\n');
+});
+writer.releaseLock();
 
 }
 
@@ -132,7 +218,13 @@ function writeToStream(...lines) {
  * @param {String} btnId Button ID (either BTN1 or BTN2)
  */
 function watchButton(btnId) {
-  // CODELAB: Hook up the micro:bit buttons to print a string.
+ // CODELAB: Hook up the micro:bit buttons to print a string.
+const cmd = `
+  setWatch(function(e) {
+    print('{"button": "${btnId}", "pressed": ' + e.state + '}');
+  }, ${btnId}, {repeat:true, debounce:20, edge:"both"});
+`;
+writeToStream(cmd);
 
 }
 
@@ -148,12 +240,17 @@ class LineBreakTransformer {
   }
 
   transform(chunk, controller) {
-    // CODELAB: Handle incoming chunk
+ // CODELAB: Handle incoming chunk
+this.container += chunk;
+const lines = this.container.split('\r\n');
+this.container = lines.pop();
+lines.forEach(line => controller.enqueue(line));
 
   }
 
   flush(controller) {
-    // CODELAB: Flush the stream.
+// CODELAB: Flush the stream.
+controller.enqueue(this.container);
 
   }
 }
@@ -165,7 +262,12 @@ class LineBreakTransformer {
  */
 class JSONTransformer {
   transform(chunk, controller) {
-    // CODELAB: Attempt to parse JSON content
+// CODELAB: Attempt to parse JSON content
+try {
+  controller.enqueue(JSON.parse(chunk));
+} catch (e) {
+  controller.enqueue(chunk);
+}
 
   }
 }
@@ -177,7 +279,22 @@ class JSONTransformer {
  * @param {Object} butEvt
  */
 function buttonPushed(butEvt) {
-  // CODELAB: micro:bit button press handler
+// CODELAB: micro:bit button press handler
+if (butEvt.button === 'BTN1') {
+  divLeftBut.classList.toggle('pressed', butEvt.pressed);
+  if (butEvt.pressed) {
+    drawGrid(GRID_HAPPY);
+    sendGrid();
+  }
+  return;
+}
+if (butEvt.button === 'BTN2') {
+  divRightBut.classList.toggle('pressed', butEvt.pressed);
+  if (butEvt.pressed) {
+    drawGrid(GRID_SAD);
+    sendGrid();
+  }
+}
 
 }
 
@@ -206,6 +323,12 @@ function toggleUIConnected(connected) {
   let lbl = 'Connect';
   if (connected) {
     lbl = 'Disconnect';
+    connectionStatus.textContent = '✓ Connected to micro:bit';
+    connectionStatus.style.color = 'green';
+    connectionStatus.style.fontWeight = 'bold';
+  } else {
+    connectionStatus.textContent = 'Not connected';
+    connectionStatus.style.color = 'red';
   }
   butConnect.textContent = lbl;
   ledCBs.forEach((cb) => {
