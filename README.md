@@ -1,4 +1,4 @@
-# Web Serial micro:bit with Espruino Firmware
+# Web Serial micro:bit with Espruino Firmware 2v28
 
 This project demonstrates Web Serial API communication with a BBC micro:bit running Espruino firmware.
 
@@ -113,3 +113,4 @@ This allows the browser checkboxes to correctly control the micro:bit LEDs, and 
 - Opera 76+
 
 (Web Serial API is not supported in Firefox or Safari)
+
