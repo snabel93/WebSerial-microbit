@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nGetting started with the Web Serial API - working code 2026\n\nThis implementation works with BBC micro:bit running Espruino firmware.\n\nKey changes:\n- Added displayPattern\\(\\) helper function to convert binary patterns to Espruino format\n- Updated sendGrid\\(\\) to call displayPattern\\(\\) instead of show\\(\\)\n- Fixed timing delays for proper REPL command execution\n- Baud rate set to 9600 for Espruino compatibility\n- Added comprehensive documentation in ESPRUINO-SETUP.md\n\nFeatures:\n- Browser-based LED control via checkboxes\n- micro:bit button events sent back to browser\n- Happy/sad face display on button press\n- Real-time bidirectional communication\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+    ]
+  }
+}
